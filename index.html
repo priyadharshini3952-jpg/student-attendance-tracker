@@ -1,0 +1,1005 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Student Attendance Tracker</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- FontAwesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        primary: '#4f46e5',
+                        'primary-hover': '#4338ca',
+                        dark: '#1e293b',
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <style>
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f5f9; 
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1; 
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8; 
+        }
+        
+        .fade-in { animation: fadeIn 0.3s ease-in-out; }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .tab-content { display: none; }
+        .tab-content.active { display: block; animation: fadeIn 0.3s ease-in-out; }
+
+        /* Toast styles */
+        #toast-container {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .toast {
+            min-width: 250px;
+            padding: 12px 20px;
+            border-radius: 8px;
+            color: white;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            opacity: 0;
+            transform: translateX(100%);
+            transition: all 0.3s ease;
+        }
+        .toast.show {
+            opacity: 1;
+            transform: translateX(0);
+        }
+        .toast.success { background-color: #10b981; }
+        .toast.error { background-color: #ef4444; }
+        .toast.info { background-color: #3b82f6; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 h-screen flex overflow-hidden">
+
+    <!-- Sidebar Navigation -->
+    <aside class="w-64 bg-dark text-white flex flex-col transition-all duration-300 z-20 absolute md:relative h-full transform -translate-x-full md:translate-x-0" id="sidebar">
+        <div class="p-5 flex items-center justify-between border-b border-slate-700">
+            <h1 class="text-xl font-bold flex items-center gap-2">
+                <i class="fa-solid fa-graduation-cap text-indigo-400"></i>
+                <span class="tracking-wide">EduTrack</span>
+            </h1>
+            <button class="md:hidden text-slate-400 hover:text-white" onclick="toggleSidebar()">
+                <i class="fa-solid fa-xmark text-xl"></i>
+            </button>
+        </div>
+        
+        <nav class="flex-1 p-4 space-y-2">
+            <button onclick="switchTab('dashboard')" class="nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-lg bg-indigo-600 text-white transition-colors" data-tab="dashboard">
+                <i class="fa-solid fa-chart-pie w-5 text-center"></i>
+                <span>Dashboard</span>
+            </button>
+            <button onclick="switchTab('students')" class="nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-lg text-slate-300 hover:bg-slate-800 hover:text-white transition-colors" data-tab="students">
+                <i class="fa-solid fa-users w-5 text-center"></i>
+                <span>Manage Students</span>
+            </button>
+            <button onclick="switchTab('attendance')" class="nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-lg text-slate-300 hover:bg-slate-800 hover:text-white transition-colors" data-tab="attendance">
+                <i class="fa-solid fa-clipboard-check w-5 text-center"></i>
+                <span>Mark Attendance</span>
+            </button>
+            
+            <div class="pt-6 mt-6 border-t border-slate-700">
+                <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Settings</label>
+                <div class="px-2">
+                    <label class="text-sm text-slate-300 flex justify-between items-center mb-1">
+                        Min Attendance %
+                        <span id="threshold-display" class="font-bold text-indigo-400">75%</span>
+                    </label>
+                    <input type="range" id="threshold-input" min="0" max="100" value="75" class="w-full accent-indigo-500">
+                </div>
+            </div>
+        </nav>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="flex-1 flex flex-col h-full overflow-hidden relative">
+        
+        <!-- Header -->
+        <header class="bg-white shadow-sm border-b border-slate-200 p-4 flex items-center justify-between z-10">
+            <button class="md:hidden text-slate-500 hover:text-slate-800" onclick="toggleSidebar()">
+                <i class="fa-solid fa-bars text-xl"></i>
+            </button>
+            <h2 class="text-xl font-semibold text-slate-800 ml-2 md:ml-0" id="header-title">Dashboard</h2>
+            <div class="text-sm text-slate-500 font-medium" id="current-date-display"></div>
+        </header>
+
+        <!-- Scrollable Content Area -->
+        <div class="flex-1 overflow-y-auto p-4 md:p-8">
+            
+            <!-- DASHBOARD TAB -->
+            <div id="tab-dashboard" class="tab-content active">
+                
+                <!-- Stats Row -->
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                    <!-- Total Students -->
+                    <div class="bg-white rounded-xl shadow-sm border border-slate-100 p-6 flex items-center">
+                        <div class="w-12 h-12 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-xl mr-4">
+                            <i class="fa-solid fa-user-graduate"></i>
+                        </div>
+                        <div>
+                            <p class="text-sm text-slate-500 font-medium">Total Students</p>
+                            <p class="text-2xl font-bold text-slate-800" id="stat-total-students">0</p>
+                        </div>
+                    </div>
+                    
+                    <!-- Present Today -->
+                    <div class="bg-white rounded-xl shadow-sm border border-slate-100 p-6 flex items-center">
+                        <div class="w-12 h-12 rounded-full bg-green-100 text-green-600 flex items-center justify-center text-xl mr-4">
+                            <i class="fa-solid fa-check"></i>
+                        </div>
+                        <div>
+                            <p class="text-sm text-slate-500 font-medium">Present Today</p>
+                            <p class="text-2xl font-bold text-slate-800" id="stat-present-today">0</p>
+                        </div>
+                    </div>
+                    
+                    <!-- Absent Today -->
+                    <div class="bg-white rounded-xl shadow-sm border border-slate-100 p-6 flex items-center">
+                        <div class="w-12 h-12 rounded-full bg-red-100 text-red-600 flex items-center justify-center text-xl mr-4">
+                            <i class="fa-solid fa-xmark"></i>
+                        </div>
+                        <div>
+                            <p class="text-sm text-slate-500 font-medium">Absent Today</p>
+                            <p class="text-2xl font-bold text-slate-800" id="stat-absent-today">0</p>
+                        </div>
+                    </div>
+                    
+                    <!-- Overall Attendance -->
+                    <div class="bg-white rounded-xl shadow-sm border border-slate-100 p-6 flex items-center">
+                        <div class="w-12 h-12 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center text-xl mr-4">
+                            <i class="fa-solid fa-percent"></i>
+                        </div>
+                        <div>
+                            <p class="text-sm text-slate-500 font-medium">Overall Average</p>
+                            <p class="text-2xl font-bold text-slate-800" id="stat-overall-avg">0%</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Low Attendance Alerts -->
+                <div class="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
+                    <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-red-50/30">
+                        <h3 class="font-semibold text-red-700 flex items-center gap-2">
+                            <i class="fa-solid fa-triangle-exclamation"></i> Low Attendance Alerts (Below <span id="alert-threshold-val">75</span>%)
+                        </h3>
+                    </div>
+                    <div class="p-0 overflow-x-auto">
+                        <table class="w-full text-left border-collapse">
+                            <thead>
+                                <tr class="bg-slate-50 text-slate-500 text-sm border-b border-slate-100">
+                                    <th class="py-3 px-6 font-medium">Student ID</th>
+                                    <th class="py-3 px-6 font-medium">Name</th>
+                                    <th class="py-3 px-6 font-medium">Dept</th>
+                                    <th class="py-3 px-6 font-medium">Attendance %</th>
+                                </tr>
+                            </thead>
+                            <tbody id="low-attendance-list" class="divide-y divide-slate-100">
+                                <!-- Populated by JS -->
+                            </tbody>
+                        </table>
+                        <div id="low-attendance-empty" class="hidden text-center py-8 text-slate-500">
+                            No students below the threshold. Great job!
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- STUDENTS TAB -->
+            <div id="tab-students" class="tab-content">
+                
+                <div class="flex flex-col lg:flex-row gap-6">
+                    <!-- Add/Edit Form -->
+                    <div class="w-full lg:w-1/3">
+                        <div class="bg-white rounded-xl shadow-sm border border-slate-100 p-6 sticky top-4">
+                            <h3 class="font-semibold text-slate-800 mb-4 text-lg" id="student-form-title">Add New Student</h3>
+                            <form id="student-form" onsubmit="handleStudentSubmit(event)">
+                                <input type="hidden" id="edit-mode-id" value="">
+                                
+                                <div class="mb-4">
+                                    <label class="block text-sm font-medium text-slate-600 mb-1">Student ID *</label>
+                                    <input type="text" id="student-id" required class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all" placeholder="e.g. CS-101">
+                                </div>
+                                
+                                <div class="mb-4">
+                                    <label class="block text-sm font-medium text-slate-600 mb-1">Full Name *</label>
+                                    <input type="text" id="student-name" required class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all" placeholder="John Doe">
+                                </div>
+                                
+                                <div class="mb-6">
+                                    <label class="block text-sm font-medium text-slate-600 mb-1">Department *</label>
+                                    <input type="text" id="student-dept" required class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all" placeholder="Computer Science">
+                                </div>
+                                
+                                <div class="flex gap-2">
+                                    <button type="submit" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-4 rounded-lg transition-colors" id="btn-save-student">
+                                        Save Student
+                                    </button>
+                                    <button type="button" onclick="resetStudentForm()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 font-medium rounded-lg transition-colors hidden" id="btn-cancel-edit">
+                                        Cancel
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+
+                    <!-- Students List -->
+                    <div class="w-full lg:w-2/3">
+                        <div class="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
+                            <!-- Filters -->
+                            <div class="p-4 border-b border-slate-100 bg-slate-50 flex flex-col sm:flex-row gap-4 items-center justify-between">
+                                <div class="relative w-full sm:w-64">
+                                    <i class="fa-solid fa-search absolute left-3 top-3 text-slate-400"></i>
+                                    <input type="text" id="search-student" placeholder="Search by ID, Name, Dept..." class="w-full pl-9 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm">
+                                </div>
+                                <div class="w-full sm:w-auto flex items-center gap-2">
+                                    <label class="text-sm text-slate-600 whitespace-nowrap">Filter Status:</label>
+                                    <select id="filter-status" class="w-full sm:w-auto px-3 py-2 border border-slate-300 rounded-lg outline-none text-sm focus:ring-2 focus:ring-indigo-500 bg-white">
+                                        <option value="all">All Students</option>
+                                        <option value="low">Low Attendance</option>
+                                        <option value="good">Good Attendance</option>
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-left border-collapse">
+                                    <thead>
+                                        <tr class="bg-white text-slate-600 text-sm border-b border-slate-200">
+                                            <th class="py-4 px-6 font-medium">ID</th>
+                                            <th class="py-4 px-6 font-medium">Name</th>
+                                            <th class="py-4 px-6 font-medium">Department</th>
+                                            <th class="py-4 px-6 font-medium">Attendance</th>
+                                            <th class="py-4 px-6 font-medium text-right">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="students-table-body" class="divide-y divide-slate-100">
+                                        <!-- Populated by JS -->
+                                    </tbody>
+                                </table>
+                                <div id="students-empty" class="hidden text-center py-12 text-slate-500">
+                                    No students found. Add a student to get started.
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ATTENDANCE TAB -->
+            <div id="tab-attendance" class="tab-content">
+                <div class="max-w-4xl mx-auto">
+                    
+                    <div class="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
+                        <!-- Attendance Header & Date Picker -->
+                        <div class="px-6 py-5 border-b border-slate-100 bg-slate-50 flex flex-col sm:flex-row justify-between items-center gap-4">
+                            <div>
+                                <h3 class="font-semibold text-slate-800 text-lg">Mark Attendance</h3>
+                                <p class="text-sm text-slate-500">Select a date and mark statuses. Changes auto-save.</p>
+                            </div>
+                            <div class="flex items-center gap-3">
+                                <label for="attendance-date" class="font-medium text-slate-700 text-sm">Date:</label>
+                                <input type="date" id="attendance-date" class="px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none font-medium text-slate-700 bg-white">
+                            </div>
+                        </div>
+
+                        <!-- Mark Attendance List -->
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left border-collapse">
+                                <thead>
+                                    <tr class="bg-white text-slate-600 text-sm border-b border-slate-200">
+                                        <th class="py-4 px-6 font-medium">Student Details</th>
+                                        <th class="py-4 px-6 font-medium text-right">Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="attendance-table-body" class="divide-y divide-slate-100">
+                                    <!-- Populated by JS -->
+                                </tbody>
+                            </table>
+                            <div id="attendance-empty" class="hidden text-center py-12 text-slate-500">
+                                No students available. Please add students first.
+                            </div>
+                        </div>
+                        
+                        <div class="p-4 bg-slate-50 border-t border-slate-100 flex justify-between items-center">
+                            <div class="text-sm text-slate-600">
+                                <span id="attendance-marked-count" class="font-bold text-indigo-600">0</span> / <span id="attendance-total-count">0</span> marked
+                            </div>
+                            <div class="flex gap-2">
+                                <button onclick="markAll('Present')" class="px-4 py-2 text-sm font-medium text-green-700 bg-green-100 hover:bg-green-200 rounded-lg transition-colors">Mark All Present</button>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <!-- Overlay for Sidebar on Mobile -->
+    <div id="sidebar-overlay" class="fixed inset-0 bg-slate-900/50 z-10 hidden md:hidden" onclick="toggleSidebar()"></div>
+
+    <!-- Toast Container -->
+    <div id="toast-container"></div>
+
+    <!-- History Modal -->
+    <div id="history-modal" class="fixed inset-0 bg-slate-900/60 z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden fade-in">
+            <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                <h3 class="font-semibold text-slate-800 text-lg flex items-center gap-2">
+                    <i class="fa-solid fa-clock-rotate-left text-indigo-500"></i>
+                    Attendance History: <span id="history-student-name" class="text-indigo-600"></span>
+                </h3>
+                <button onclick="closeModal('history-modal')" class="text-slate-400 hover:text-slate-600 text-xl">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            
+            <div class="p-6 flex-1 overflow-y-auto bg-white">
+                <div class="flex gap-4 mb-6">
+                    <div class="flex-1 bg-slate-50 p-4 rounded-lg border border-slate-100 text-center">
+                        <div class="text-sm text-slate-500 mb-1">Total Classes</div>
+                        <div class="text-xl font-bold text-slate-800" id="hist-total">0</div>
+                    </div>
+                    <div class="flex-1 bg-green-50 p-4 rounded-lg border border-green-100 text-center">
+                        <div class="text-sm text-green-600 mb-1">Present</div>
+                        <div class="text-xl font-bold text-green-700" id="hist-present">0</div>
+                    </div>
+                    <div class="flex-1 bg-red-50 p-4 rounded-lg border border-red-100 text-center">
+                        <div class="text-sm text-red-600 mb-1">Absent</div>
+                        <div class="text-xl font-bold text-red-700" id="hist-absent">0</div>
+                    </div>
+                    <div class="flex-1 bg-indigo-50 p-4 rounded-lg border border-indigo-100 text-center">
+                        <div class="text-sm text-indigo-600 mb-1">Percentage</div>
+                        <div class="text-xl font-bold text-indigo-700" id="hist-percent">0%</div>
+                    </div>
+                </div>
+
+                <table class="w-full text-left border-collapse border border-slate-200 rounded-lg overflow-hidden block">
+                    <thead class="bg-slate-50 text-slate-600 text-sm border-b border-slate-200 block">
+                        <tr class="table w-full table-layout-fixed">
+                            <th class="py-3 px-6 font-medium w-1/2">Date</th>
+                            <th class="py-3 px-6 font-medium w-1/2 text-right">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="history-table-body" class="block max-h-64 overflow-y-auto w-full">
+                        <!-- Populated by JS -->
+                    </tbody>
+                </table>
+                <div id="history-empty" class="hidden text-center py-8 text-slate-500">
+                    No attendance records found for this student.
+                </div>
+            </div>
+            
+            <div class="px-6 py-4 border-t border-slate-100 bg-slate-50 flex justify-end">
+                <button onclick="closeModal('history-modal')" class="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 font-medium rounded-lg transition-colors">Close</button>
+            </div>
+        </div>
+    </div>
+
+
+    <script>
+        /**
+         * State Management
+         */
+        let state = {
+            students: [], // Array of { id, name, dept }
+            attendance: {}, // Map of date (YYYY-MM-DD) to map of studentId -> 'Present' | 'Absent'
+            threshold: 75
+        };
+
+        const today = new Date().toISOString().split('T')[0];
+        let currentTab = 'dashboard';
+
+        // Load data from LocalStorage on mount
+        function loadData() {
+            const stored = localStorage.getItem('eduTrackState');
+            if (stored) {
+                try {
+                    const parsed = JSON.parse(stored);
+                    state = { ...state, ...parsed };
+                } catch (e) {
+                    console.error("Error loading state from LocalStorage", e);
+                }
+            }
+            
+            // Sync threshold input
+            document.getElementById('threshold-input').value = state.threshold;
+            document.getElementById('threshold-display').innerText = state.threshold + '%';
+            document.getElementById('alert-threshold-val').innerText = state.threshold;
+            
+            // Set date picker to today initially
+            document.getElementById('attendance-date').value = today;
+            
+            // Display formatted date in header
+            updateDateDisplay();
+        }
+
+        // Save data to LocalStorage
+        function saveData() {
+            localStorage.setItem('eduTrackState', JSON.stringify(state));
+            renderAll();
+        }
+
+        /**
+         * UI Initialization & Event Listeners
+         */
+        document.addEventListener('DOMContentLoaded', () => {
+            loadData();
+            
+            // Event Listeners for search and filters
+            document.getElementById('search-student').addEventListener('input', renderStudents);
+            document.getElementById('filter-status').addEventListener('change', renderStudents);
+            
+            // Attendance Date change
+            document.getElementById('attendance-date').addEventListener('change', renderAttendanceTab);
+            
+            // Threshold change
+            document.getElementById('threshold-input').addEventListener('input', (e) => {
+                state.threshold = parseInt(e.target.value);
+                document.getElementById('threshold-display').innerText = state.threshold + '%';
+                document.getElementById('alert-threshold-val').innerText = state.threshold;
+                saveData(); // Recalculates and re-renders highlights
+            });
+
+            // Initial Render
+            renderAll();
+        });
+
+        function updateDateDisplay() {
+            const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+            document.getElementById('current-date-display').innerText = new Date().toLocaleDateString('en-US', options);
+        }
+
+        function switchTab(tabId) {
+            currentTab = tabId;
+            // Hide all tabs
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+            // Reset nav buttons
+            document.querySelectorAll('.nav-btn').forEach(btn => {
+                btn.className = 'nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-lg text-slate-300 hover:bg-slate-800 hover:text-white transition-colors';
+            });
+            
+            // Show active tab
+            document.getElementById(tab-${tabId}).classList.add('active');
+            
+            // Highlight active button
+            const activeBtn = document.querySelector(.nav-btn[data-tab="${tabId}"]);
+            if (activeBtn) {
+                activeBtn.className = 'nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-lg bg-indigo-600 text-white transition-colors';
+            }
+            
+            // Update Header Title
+            const titles = {
+                'dashboard': 'Dashboard Overview',
+                'students': 'Manage Students',
+                'attendance': 'Mark Attendance'
+            };
+            document.getElementById('header-title').innerText = titles[tabId];
+
+            // Close sidebar on mobile
+            if (window.innerWidth < 768) {
+                document.getElementById('sidebar').classList.add('-translate-x-full');
+                document.getElementById('sidebar-overlay').classList.add('hidden');
+            }
+
+            renderAll();
+        }
+
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('sidebar-overlay');
+            sidebar.classList.toggle('-translate-x-full');
+            overlay.classList.toggle('hidden');
+        }
+
+        function renderAll() {
+            if (currentTab === 'dashboard') renderDashboard();
+            if (currentTab === 'students') renderStudents();
+            if (currentTab === 'attendance') renderAttendanceTab();
+        }
+
+        /**
+         * Core Logic: Attendance Calculations
+         */
+        function getStudentStats(studentId) {
+            let total = 0;
+            let present = 0;
+            
+            for (const date in state.attendance) {
+                if (state.attendance[date][studentId]) {
+                    total++;
+                    if (state.attendance[date][studentId] === 'Present') {
+                        present++;
+                    }
+                }
+            }
+            
+            const percentage = total === 0 ? 0 : Math.round((present / total) * 100);
+            return { total, present, absent: total - present, percentage };
+        }
+
+        function getOverallStats() {
+            let totalPresent = 0;
+            let totalRecords = 0;
+            let presentToday = 0;
+            let absentToday = 0;
+            
+            const todayDate = today;
+
+            // Compute overall averages
+            state.students.forEach(student => {
+                const stats = getStudentStats(student.id);
+                totalRecords += stats.total;
+                totalPresent += stats.present;
+            });
+
+            // Compute today's specific stats
+            if (state.attendance[todayDate]) {
+                Object.values(state.attendance[todayDate]).forEach(status => {
+                    if (status === 'Present') presentToday++;
+                    if (status === 'Absent') absentToday++;
+                });
+            }
+
+            const overallPercentage = totalRecords === 0 ? 0 : Math.round((totalPresent / totalRecords) * 100);
+
+            return {
+                totalStudents: state.students.length,
+                presentToday,
+                absentToday,
+                overallPercentage
+            };
+        }
+
+        /**
+         * Tab 1: Dashboard Rendering
+         */
+        function renderDashboard() {
+            const stats = getOverallStats();
+            
+            document.getElementById('stat-total-students').innerText = stats.totalStudents;
+            document.getElementById('stat-present-today').innerText = stats.presentToday;
+            document.getElementById('stat-absent-today').innerText = stats.absentToday;
+            document.getElementById('stat-overall-avg').innerText = stats.overallPercentage + '%';
+
+            const lowList = document.getElementById('low-attendance-list');
+            const emptyMsg = document.getElementById('low-attendance-empty');
+            
+            lowList.innerHTML = '';
+            let lowCount = 0;
+
+            state.students.forEach(student => {
+                const sStats = getStudentStats(student.id);
+                // Only show if they have at least 1 record and fall below threshold
+                if (sStats.total > 0 && sStats.percentage < state.threshold) {
+                    lowCount++;
+                    lowList.innerHTML += `
+                        <tr class="hover:bg-slate-50 transition-colors">
+                            <td class="py-3 px-6 text-slate-800 font-medium">${student.id}</td>
+                            <td class="py-3 px-6 text-slate-600">${student.name}</td>
+                            <td class="py-3 px-6 text-slate-500 text-sm">${student.dept}</td>
+                            <td class="py-3 px-6">
+                                <span class="px-2 py-1 bg-red-100 text-red-700 font-bold rounded text-xs">
+                                    ${sStats.percentage}%
+                                </span>
+                            </td>
+                        </tr>
+                    `;
+                }
+            });
+
+            if (lowCount === 0) {
+                emptyMsg.classList.remove('hidden');
+                lowList.parentElement.classList.add('hidden');
+            } else {
+                emptyMsg.classList.add('hidden');
+                lowList.parentElement.classList.remove('hidden');
+            }
+        }
+
+        /**
+         * Tab 2: Student Management
+         */
+        function handleStudentSubmit(e) {
+            e.preventDefault();
+            const idInput = document.getElementById('student-id');
+            const nameInput = document.getElementById('student-name');
+            const deptInput = document.getElementById('student-dept');
+            const editId = document.getElementById('edit-mode-id').value;
+
+            const id = idInput.value.trim();
+            const name = nameInput.value.trim();
+            const dept = deptInput.value.trim();
+
+            if (!id || !name || !dept) return showToast("All fields are required.", "error");
+
+            if (editId) {
+                // Edit existing
+                // Check if new ID conflicts with another student (not self)
+                if (id !== editId && state.students.some(s => s.id === id)) {
+                    return showToast("Student ID already exists.", "error");
+                }
+                
+                const index = state.students.findIndex(s => s.id === editId);
+                if (index > -1) {
+                    // Update attendance records if ID changed
+                    if (id !== editId) {
+                        for (const date in state.attendance) {
+                            if (state.attendance[date][editId]) {
+                                state.attendance[date][id] = state.attendance[date][editId];
+                                delete state.attendance[date][editId];
+                            }
+                        }
+                    }
+                    state.students[index] = { id, name, dept };
+                    showToast("Student updated successfully.");
+                }
+            } else {
+                // Add new
+                if (state.students.some(s => s.id === id)) {
+                    return showToast("Student ID already exists.", "error");
+                }
+                state.students.push({ id, name, dept });
+                showToast("Student added successfully.");
+            }
+
+            saveData();
+            resetStudentForm();
+        }
+
+        function resetStudentForm() {
+            document.getElementById('student-form').reset();
+            document.getElementById('edit-mode-id').value = '';
+            document.getElementById('student-id').disabled = false; // Allow ID edit on add
+            document.getElementById('student-form-title').innerText = 'Add New Student';
+            document.getElementById('btn-save-student').innerText = 'Save Student';
+            document.getElementById('btn-cancel-edit').classList.add('hidden');
+        }
+
+        function editStudent(id) {
+            const student = state.students.find(s => s.id === id);
+            if (!student) return;
+
+            document.getElementById('edit-mode-id').value = student.id;
+            document.getElementById('student-id').value = student.id;
+            document.getElementById('student-name').value = student.name;
+            document.getElementById('student-dept').value = student.dept;
+            
+            document.getElementById('student-form-title').innerText = 'Edit Student';
+            document.getElementById('btn-save-student').innerText = 'Update Student';
+            document.getElementById('btn-cancel-edit').classList.remove('hidden');
+            
+            // Scroll to form on mobile
+            if (window.innerWidth < 1024) {
+                document.getElementById('tab-students').scrollIntoView({ behavior: 'smooth' });
+            }
+        }
+
+        function deleteStudent(id) {
+            // Confirm using custom toast/UI logic, but to keep it single-file clean, we use custom UI
+            // For simplicity in UX, we'll just delete and show toast with undo-like vibe (though actual undo requires complex state history)
+            // Let's implement a safe delete.
+            state.students = state.students.filter(s => s.id !== id);
+            
+            // Cleanup attendance records
+            for (const date in state.attendance) {
+                if (state.attendance[date][id]) {
+                    delete state.attendance[date][id];
+                }
+            }
+            
+            showToast("Student deleted successfully.", "info");
+            saveData();
+        }
+
+        function renderStudents() {
+            const tbody = document.getElementById('students-table-body');
+            const emptyMsg = document.getElementById('students-empty');
+            const searchQuery = document.getElementById('search-student').value.toLowerCase();
+            const filterStatus = document.getElementById('filter-status').value;
+            
+            tbody.innerHTML = '';
+            let count = 0;
+
+            // Combine stats with students for filtering
+            const studentsWithStats = state.students.map(s => {
+                return { ...s, stats: getStudentStats(s.id) };
+            });
+
+            studentsWithStats.forEach(student => {
+                // Apply Search
+                const matchesSearch = student.id.toLowerCase().includes(searchQuery) ||
+                                      student.name.toLowerCase().includes(searchQuery) ||
+                                      student.dept.toLowerCase().includes(searchQuery);
+                
+                // Apply Filter
+                let matchesFilter = true;
+                if (filterStatus === 'low' && (student.stats.total === 0 || student.stats.percentage >= state.threshold)) {
+                    matchesFilter = false;
+                }
+                if (filterStatus === 'good' && student.stats.total > 0 && student.stats.percentage < state.threshold) {
+                    matchesFilter = false;
+                }
+
+                if (matchesSearch && matchesFilter) {
+                    count++;
+                    const isLow = student.stats.total > 0 && student.stats.percentage < state.threshold;
+                    const pctColor = student.stats.total === 0 ? 'text-slate-400' : (isLow ? 'text-red-600 font-bold' : 'text-green-600 font-medium');
+                    const pctBg = isLow ? 'bg-red-100' : 'bg-transparent';
+                    
+                    tbody.innerHTML += `
+                        <tr class="hover:bg-slate-50 transition-colors ${pctBg}">
+                            <td class="py-4 px-6 text-slate-800 font-medium">${student.id}</td>
+                            <td class="py-4 px-6 text-slate-800">
+                                <div class="flex items-center gap-2">
+                                    <div class="w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-xs uppercase">
+                                        ${student.name.substring(0, 2)}
+                                    </div>
+                                    ${student.name}
+                                </div>
+                            </td>
+                            <td class="py-4 px-6 text-slate-500 text-sm">${student.dept}</td>
+                            <td class="py-4 px-6">
+                                <span class="${pctColor}">${student.stats.total > 0 ? student.stats.percentage + '%' : 'N/A'}</span>
+                            </td>
+                            <td class="py-4 px-6 text-right">
+                                <button onclick="viewHistory('${student.id}')" class="text-indigo-500 hover:text-indigo-700 mr-3" title="View History">
+                                    <i class="fa-solid fa-clock-rotate-left"></i>
+                                </button>
+                                <button onclick="editStudent('${student.id}')" class="text-blue-500 hover:text-blue-700 mr-3" title="Edit">
+                                    <i class="fa-solid fa-pen"></i>
+                                </button>
+                                <button onclick="deleteStudent('${student.id}')" class="text-red-500 hover:text-red-700" title="Delete">
+                                    <i class="fa-solid fa-trash"></i>
+                                </button>
+                            </td>
+                        </tr>
+                    `;
+                }
+            });
+
+            if (count === 0) {
+                emptyMsg.classList.remove('hidden');
+                tbody.parentElement.classList.add('hidden');
+            } else {
+                emptyMsg.classList.add('hidden');
+                tbody.parentElement.classList.remove('hidden');
+            }
+        }
+
+        /**
+         * Tab 3: Attendance Marking
+         */
+        function renderAttendanceTab() {
+            const date = document.getElementById('attendance-date').value;
+            if (!date) return;
+
+            const tbody = document.getElementById('attendance-table-body');
+            const emptyMsg = document.getElementById('attendance-empty');
+            
+            // Ensure date object exists in state
+            if (!state.attendance[date]) {
+                state.attendance[date] = {};
+            }
+
+            const dayRecords = state.attendance[date];
+            tbody.innerHTML = '';
+            let markedCount = 0;
+
+            state.students.forEach(student => {
+                const currentStatus = dayRecords[student.id] || null;
+                if (currentStatus) markedCount++;
+
+                const presentSelected = currentStatus === 'Present' ? 'checked' : '';
+                const absentSelected = currentStatus === 'Absent' ? 'checked' : '';
+
+                tbody.innerHTML += `
+                    <tr class="hover:bg-slate-50 transition-colors">
+                        <td class="py-4 px-6">
+                            <div class="font-medium text-slate-800">${student.name} <span class="text-xs text-slate-400 font-normal ml-2">${student.id}</span></div>
+                            <div class="text-xs text-slate-500">${student.dept}</div>
+                        </td>
+                        <td class="py-4 px-6 text-right">
+                            <div class="inline-flex rounded-md shadow-sm" role="group">
+                                <input type="radio" name="att-${student.id}" id="present-${student.id}" value="Present" class="hidden peer/present" ${presentSelected} onchange="markSingle('${student.id}', 'Present')">
+                                <label for="present-${student.id}" class="px-4 py-2 text-sm font-medium rounded-l-lg border border-slate-200 cursor-pointer transition-colors peer-checked/present:bg-green-500 peer-checked/present:text-white peer-checked/present:border-green-500 hover:bg-slate-100 text-slate-600">
+                                    Present
+                                </label>
+                                
+                                <input type="radio" name="att-${student.id}" id="absent-${student.id}" value="Absent" class="hidden peer/absent" ${absentSelected} onchange="markSingle('${student.id}', 'Absent')">
+                                <label for="absent-${student.id}" class="px-4 py-2 text-sm font-medium rounded-r-lg border border-slate-200 border-l-0 cursor-pointer transition-colors peer-checked/absent:bg-red-500 peer-checked/absent:text-white peer-checked/absent:border-red-500 hover:bg-slate-100 text-slate-600">
+                                    Absent
+                                </label>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            });
+
+            document.getElementById('attendance-marked-count').innerText = markedCount;
+            document.getElementById('attendance-total-count').innerText = state.students.length;
+
+            if (state.students.length === 0) {
+                emptyMsg.classList.remove('hidden');
+                tbody.parentElement.classList.add('hidden');
+            } else {
+                emptyMsg.classList.add('hidden');
+                tbody.parentElement.classList.remove('hidden');
+            }
+        }
+
+        function markSingle(studentId, status) {
+            const date = document.getElementById('attendance-date').value;
+            
+            // This structure naturally prevents duplicates per student per date
+            state.attendance[date][studentId] = status;
+            
+            saveData(); // Auto save
+            
+            // Update counter without full re-render to avoid losing focus/scroll position
+            let markedCount = 0;
+            state.students.forEach(s => { if(state.attendance[date][s.id]) markedCount++; });
+            document.getElementById('attendance-marked-count').innerText = markedCount;
+        }
+
+        function markAll(status) {
+            if (state.students.length === 0) return;
+            const date = document.getElementById('attendance-date').value;
+            
+            state.students.forEach(student => {
+                state.attendance[date][student.id] = status;
+            });
+            
+            showToast(All students marked as ${status} for ${date});
+            saveData();
+            renderAttendanceTab();
+        }
+
+        /**
+         * History Modal
+         */
+        function viewHistory(studentId) {
+            const student = state.students.find(s => s.id === studentId);
+            if (!student) return;
+
+            document.getElementById('history-student-name').innerText = ${student.name} (${student.id});
+            const stats = getStudentStats(studentId);
+            
+            document.getElementById('hist-total').innerText = stats.total;
+            document.getElementById('hist-present').innerText = stats.present;
+            document.getElementById('hist-absent').innerText = stats.absent;
+            document.getElementById('hist-percent').innerText = stats.percentage + '%';
+            
+            // Highlight low percentage
+            const pElem = document.getElementById('hist-percent');
+            if (stats.percentage < state.threshold) {
+                pElem.className = 'text-xl font-bold text-red-600';
+                pElem.parentElement.className = 'flex-1 bg-red-50 p-4 rounded-lg border border-red-100 text-center';
+            } else {
+                pElem.className = 'text-xl font-bold text-indigo-700';
+                pElem.parentElement.className = 'flex-1 bg-indigo-50 p-4 rounded-lg border border-indigo-100 text-center';
+            }
+
+            const tbody = document.getElementById('history-table-body');
+            const emptyMsg = document.getElementById('history-empty');
+            tbody.innerHTML = '';
+            
+            // Extract history for this student, sort by date descending
+            let historyRecords = [];
+            for (const date in state.attendance) {
+                if (state.attendance[date][studentId]) {
+                    historyRecords.push({
+                        date: date,
+                        status: state.attendance[date][studentId]
+                    });
+                }
+            }
+            
+            historyRecords.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+            if (historyRecords.length === 0) {
+                emptyMsg.classList.remove('hidden');
+                tbody.parentElement.classList.add('hidden');
+            } else {
+                emptyMsg.classList.add('hidden');
+                tbody.parentElement.classList.remove('hidden');
+                
+                historyRecords.forEach(record => {
+                    const isPresent = record.status === 'Present';
+                    const statusClass = isPresent ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700';
+                    const icon = isPresent ? '<i class="fa-solid fa-check mr-1"></i>' : '<i class="fa-solid fa-xmark mr-1"></i>';
+                    
+                    const dateObj = new Date(record.date);
+                    const dateStr = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+
+                    tbody.innerHTML += `
+                        <tr class="table w-full table-layout-fixed border-b border-slate-100 hover:bg-slate-50 transition-colors">
+                            <td class="py-3 px-6 text-slate-700 w-1/2">${dateStr}</td>
+                            <td class="py-3 px-6 text-right w-1/2">
+                                <span class="px-3 py-1 rounded-full text-xs font-semibold ${statusClass}">
+                                    ${icon} ${record.status}
+                                </span>
+                            </td>
+                        </tr>
+                    `;
+                });
+            }
+
+            document.getElementById('history-modal').classList.remove('hidden');
+        }
+
+        function closeModal(modalId) {
+            document.getElementById(modalId).classList.add('hidden');
+        }
+
+        /**
+         * Custom Toast Notification System
+         */
+        function showToast(message, type = 'success') {
+            const container = document.getElementById('toast-container');
+            
+            const toast = document.createElement('div');
+            toast.className = toast ${type};
+            
+            let icon = '';
+            if (type === 'success') icon = '<i class="fa-solid fa-circle-check"></i>';
+            else if (type === 'error') icon = '<i class="fa-solid fa-circle-exclamation"></i>';
+            else icon = '<i class="fa-solid fa-circle-info"></i>';
+            
+            toast.innerHTML = ${icon} <span>${message}</span>;
+            
+            container.appendChild(toast);
+            
+            // Trigger animation
+            setTimeout(() => toast.classList.add('show'), 10);
+            
+            // Remove after 3 seconds
+            setTimeout(() => {
+                toast.classList.remove('show');
+                setTimeout(() => toast.remove(), 300); // Wait for transition
+            }, 3000);
+        }
+
+    </script>
+</body>
+</html>
